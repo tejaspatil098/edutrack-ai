@@ -1,0 +1,2 @@
+-- Initial migration scaffold.
+-- Run `npx prisma migrate dev --name init --schema=database/schema/prisma/schema.prisma` once PostgreSQL is running.

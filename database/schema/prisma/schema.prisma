@@ -1,0 +1,434 @@
+// Prisma schema for EduTrack AI core models.
+// Generated to provide relational structure for schools, staff, timetables, attendance, and telemetry.
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum RegistrationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  PENDING
+  FLAGGED
+  EXCUSED
+  ON_LEAVE
+  SUBSTITUTED
+}
+
+model School {
+  id              String   @id @default(uuid())
+  name            String
+  code            String   @unique
+  timezone        String   @default("Asia/Kolkata")
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  users           User[]
+  departments     Department[]
+  classes         SchoolClass[]
+  subjects        Subject[]
+  timetables      TeacherTimetable[]
+  attendanceLogs AttendanceRecord[]
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  fullName      String
+  role          String    @default("teacher")
+  schoolId      String?
+  school        School?   @relation(fields: [schoolId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  staffProfile  StaffProfile?
+  registrationRequest RegistrationRequest?
+}
+
+model Role {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  permissions Permission[]
+  userRoles   UserRole[]
+}
+
+model Permission {
+  id          String @id @default(uuid())
+  name        String @unique
+  description String?
+  roles       Role[]
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+}
+
+model StaffProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  employeeId    String   @unique
+  phone         String?
+  dob           DateTime?
+  residentialAddress String?
+  city          String?
+  state         String?
+  pincode       String?
+  designation  String?
+  departmentId  String?
+  employmentType String?
+  joiningDate  DateTime?
+  qualification String?
+  subjectsTaught String[]
+  status       RegistrationStatus @default(PENDING)
+  schoolId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model RegistrationRequest {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  schoolCode  String?
+  status      RegistrationStatus @default(PENDING)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StaffDocument {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String
+  url         String
+  createdAt   DateTime @default(now())
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  name        String
+  code        String?
+  createdAt   DateTime @default(now())
+
+  @@unique([schoolId, name])
+}
+
+model SchoolClass {
+  id          String   @id @default(uuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  name        String
+  section     String?
+  createdAt   DateTime @default(now())
+
+  @@unique([schoolId, name, section])
+}
+
+model Subject {
+  id          String   @id @default(uuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  name        String
+  code        String?
+  createdAt   DateTime @default(now())
+
+  @@unique([schoolId, name])
+}
+
+model SchoolOperatingHour {
+  id            String   @id @default(uuid())
+  schoolId      String
+  openingTime   String
+  closingTime   String
+  firstLecture  String
+  lastLecture   String
+  lectureDuration Int
+  gracePeriod   Int
+  timezone      String
+  createdAt     DateTime @default(now())
+}
+
+model SchoolWorkingDay {
+  id          String   @id @default(uuid())
+  schoolId    String
+  dayOfWeek   Int
+  isWorking   Boolean  @default(true)
+}
+
+model SchoolHoliday {
+  id          String   @id @default(uuid())
+  schoolId    String
+  holidayDate DateTime
+  reason      String?
+}
+
+model TeacherTimetable {
+  id          String   @id @default(uuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  teacherId   String
+  status      String   @default("draft")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lectures    TimetableLecture[]
+}
+
+model TimetableUpload {
+  id          String   @id @default(uuid())
+  teacherId   String
+  fileName    String
+  fileUrl     String
+  mimeType    String
+  createdAt   DateTime @default(now())
+}
+
+model TimetableExtraction {
+  id          String   @id @default(uuid())
+  uploadId    String
+  rawText     String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+}
+
+model TimetableLecture {
+  id          String   @id @default(uuid())
+  timetableId String
+  timetable   TeacherTimetable @relation(fields: [timetableId], references: [id])
+  day         String
+  startTime   String
+  endTime     String
+  subject     String
+  className   String
+  section     String?
+  classroom   String?
+  teacherId   String
+  createdAt   DateTime @default(now())
+}
+
+model TimetableApproval {
+  id          String   @id @default(uuid())
+  timetableId String
+  approvedBy  String?
+  status      String   @default("pending")
+  comments    String?
+  createdAt   DateTime @default(now())
+}
+
+model LectureSession {
+  id          String   @id @default(uuid())
+  timetableId String
+  lectureId   String
+  startAt     DateTime
+  endAt       DateTime
+  status      String   @default("scheduled")
+}
+
+model AttendanceRecord {
+  id          String   @id @default(uuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  teacherId   String
+  sessionId   String
+  status      AttendanceStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AttendanceAttempt {
+  id             String   @id @default(uuid())
+  teacherId      String
+  lectureId      String
+  status         String   @default("started")
+  createdAt      DateTime @default(now())
+}
+
+model GeoCamPhoto {
+  id                 String   @id @default(uuid())
+  schoolId           String
+  teacherId          String
+  lectureId          String
+  serverTimestamp    DateTime
+  privateObjectKey   String
+  faceVerification   String?
+  livenessResult     String?
+  duplicateResult    String?
+  gpsLatitude        Float?
+  gpsLongitude       Float?
+  gpsAccuracy        Float?
+  distanceFromSchool Float?
+  reviewDecision     String?
+  createdAt          DateTime @default(now())
+}
+
+model FaceEnrollment {
+  id          String   @id @default(uuid())
+  userId      String
+  templateKey String
+  createdAt   DateTime @default(now())
+}
+
+model FaceVerificationLog {
+  id          String   @id @default(uuid())
+  userId      String
+  attemptId   String
+  score       Float?
+  result      String?
+  createdAt   DateTime @default(now())
+}
+
+model LivenessLog {
+  id          String   @id @default(uuid())
+  userId      String
+  result      String?
+  details     String?
+  createdAt   DateTime @default(now())
+}
+
+model PhotoDuplicateLog {
+  id          String   @id @default(uuid())
+  userId      String
+  hash        String?
+  signal      String?
+  createdAt   DateTime @default(now())
+}
+
+model GpsAttendanceRecord {
+  id          String   @id @default(uuid())
+  userId      String
+  lectureId   String
+  latitude    Float?
+  longitude   Float?
+  accuracy    Float?
+  distance    Float?
+  createdAt   DateTime @default(now())
+}
+
+model LiveStaffLocation {
+  id          String   @id @default(uuid())
+  userId      String
+  latitude    Float?
+  longitude   Float?
+  accuracy    Float?
+  distance    Float?
+  status      String   @default("active")
+  updatedAt   DateTime @updatedAt
+}
+
+model StaffLocationHistory {
+  id          String   @id @default(uuid())
+  userId      String
+  latitude    Float?
+  longitude   Float?
+  accuracy    Float?
+  capturedAt  DateTime @default(now())
+}
+
+model LocationSharingSession {
+  id          String   @id @default(uuid())
+  userId      String
+  startAt     DateTime
+  endAt       DateTime?
+  status      String   @default("active")
+}
+
+model LocationPermission {
+  id          String   @id @default(uuid())
+  userId      String
+  grantedBy   String?
+  expiresAt   DateTime?
+  status      String   @default("granted")
+}
+
+model AttendanceAlert {
+  id          String   @id @default(uuid())
+  userId      String
+  alertType   String
+  message     String
+  status      String   @default("open")
+  createdAt   DateTime @default(now())
+}
+
+model NotificationLog {
+  id          String   @id @default(uuid())
+  userId      String
+  channel     String
+  message     String
+  deliveredAt DateTime?
+}
+
+model LeaveRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+}
+
+model SubstituteAssignment {
+  id             String   @id @default(uuid())
+  lectureId      String
+  originalTeacher String
+  substituteTeacher String
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+}
+
+model AiAttendanceInsight {
+  id          String   @id @default(uuid())
+  schoolId    String
+  summary     String
+  createdAt   DateTime @default(now())
+}
+
+model AttendanceReviewLog {
+  id          String   @id @default(uuid())
+  userId      String
+  decision    String
+  comments    String?
+  createdAt   DateTime @default(now())
+}
+
+model Device {
+  id          String   @id @default(uuid())
+  userId      String
+  deviceName  String
+  platform    String?
+  pushToken   String?
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+}
